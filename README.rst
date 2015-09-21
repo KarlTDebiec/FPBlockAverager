@@ -19,7 +19,7 @@ packages:
 - pandas
 - six
 
-FPBlockAveragr has been tested with Anaconda Python 2.2.0 on Arch Linux, OSX
+FPBlockAverager has been tested with Anaconda Python 2.2.0 on Arch Linux, OSX
 Yosemite, and Windows 8.1.
 
 Authorship
