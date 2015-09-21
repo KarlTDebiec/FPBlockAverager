@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#   fp_block_average.FPBlockAverager.py
+#   fp_block_averager.FPBlockAverager.py
 #
 #   Copyright (C) 2014-2015 Karl T Debiec
 #   All rights reserved.
@@ -17,32 +17,41 @@ correlated data. Journal of Chemical Physics. 1989. 91 (1). 461-466.
 ################################### MODULES ###################################
 from __future__ import absolute_import,division,print_function,unicode_literals
 if __name__ == "__main__":
-    __package__ = str("fp_block_average")
-    import fp_block_average
+    __package__ = str("fp_block_averager")
+    import fp_block_averager
 ################################### CLASSES ###################################
 class FPBlockAverager(object):
     """
     Class to manage estimation of standard error using the
     block-averaging method of Flyvbjerg and Petersen
+
+    Flyvbjerg, H., and Petersen, H. G. Error estimates on averages of
+    correlated data. Journal of Chemical Physics. 1989. 91 (1). 461-466.
     """
     def __init__(self, dataset, factor=1, max_omitted=0.01, min_n_blocks=2,
-        debug=False, **kwargs):
+        verbose=1, debug=0, **kwargs):
         """
-        **Arguments:**
-            :*dataset*:      Dataset
-            :*name*:         Name of dataset (default = time)
-            :*fieldnames*:   Name of fields within dataset
-                             (default = 0,1,2,...)
-            :*full_length*:  Full length of dataset (default = length
-                             of first dimension of *dataset*)
-            :*factor*:       Factor by which all block sizes must be
-                             divisible (default = 1)
-            :*min_n_blocks*: Minimum block size for transformations
-                             (default = 2)
-            :*max_omitted*:  Maximum proportion of original dataset
-                             that may be omitted from end of
-                             block-transformed dataset (default = 0.01)
-            :*debug*:        Enable debug output (default = False)
+        Initializes.
+
+        Arguments:
+          dataset (DataFrame): Dataset
+          name (str): Name of dataset
+          fieldnames (list): Name of fields of dataset
+          full_length (int): Full length of dataset
+          factor (int): Factor by which all block sizes must be
+            divisible
+          min_n_blocks (int): Minimum block size for transformations
+          max_omitted (float): Maximum proportion of original dataset
+            that may be omitted from end of block-transformed dataset
+          verbose (int): Level of verbose output
+          debug (int): Level of debug output
+          kwargs (dict): Additional keyword arguments
+
+        .. todo:
+          - Fix
+          - Clean up debug; looks embarrisingly outdated
+          - Add example data sets and plots
+          - Load from hdf5 using pandas or otherwise
         """
         from time import strftime
 
@@ -66,6 +75,9 @@ class FPBlockAverager(object):
     def __call__(self, **kwargs):
         """
         Carries out full standard error estimation
+
+        Arguments:
+          kwargs (dict): Additional keyword arguments
         """
         self.select_lengths(**kwargs)
         self.calculate_blocks(**kwargs)
@@ -73,15 +85,15 @@ class FPBlockAverager(object):
         if self.debug:
             self.plot()
 
-    def select_lengths(self, mode = 2, **kwargs):
+    def select_lengths(self, mode=2, **kwargs):
         """
-        Selects lengths of block-transformed datasets
+        Selects lengths of block-transformed datasets.
 
-        **Arguments:**
-            :*mode*: Length selection mode; mode 1 divides dataset into
-                     2, 3, 4, 5, ... blocks; mode 2 divides dataset
-                     into 2, 4, 8, 16, ... blocks, as in the original
-                     manuscript
+        Arguments:
+          mode (int): Length selection mode; mode 1 divides dataset into
+            2, 3, 4, 5, ... blocks; mode 2 divides dataset into 2, 4, 8,
+            16, ... blocks, as in the original manuscript
+          kwargs (dict): Additional keyword arguments
         """
 
         if mode == 2:                   # Use only powers of two
@@ -125,11 +137,15 @@ class FPBlockAverager(object):
 
     def calculate_blocks(self, **kwargs):
         """
-        Calculates standard error for each block transform
+        Calculates standard error for each block transform.
 
-        Note that the standard deviation of each standard error
-        (stderr_stddev) is only valid for points whose standard
-        error has leveled off (i.e. can be assumed Gaussian).
+        .. note:: 
+            The standard deviation of each standard error
+            (stderr_stddev) is only valid for points whose standard
+            error has leveled off (i.e. can be assumed Gaussian).
+
+        Arguments:
+          kwargs (dict): Additional keyword arguments
         """
         self.means           = np.zeros((self.block_lengths.size,
                                          self.n_fields), np.float)
@@ -157,13 +173,14 @@ class FPBlockAverager(object):
 
     def transform(self, block_length, n_blocks, total_length, **kwargs):
         """
-        Prepares a block-transformed dataset
+        Prepares a block-transformed dataset.
 
-        **Argument:**
-            :*block_length*: Length of each block in transformed
-                             dataset
-            :*n_blocks*:     Number of blocks in transformed dataset 
-            :*total_length*: Number of frames in transformed dataset
+        Arguments:
+          block_length (int): Length of each block in transformed
+            dataset
+          n_blocks (int): Number of blocks in transformed dataset 
+          total_length (int): Number of frames in transformed dataset
+          kwargs (dict): Additional keyword arguments
         """
         transformed = np.zeros((n_blocks, self.n_fields), np.float)
         for i in range(transformed.shape[1]):
@@ -174,10 +191,11 @@ class FPBlockAverager(object):
 
     def fit_curves(self, **kwargs):
         """
-        Fits exponential and sigmoid curves to block-transformed data
+        Fits exponential and sigmoid curves to block-transformed data.
 
-        **Arguments:**
-            :*kwargs*: Passed to scipy.optimize.curve_fit
+        Arguments:
+          kwargs (dict): Additional keyword arguments; passed to
+            scipy.optimize.curve_fit
         """
         import warnings
         from scipy.optimize import curve_fit
@@ -187,14 +205,14 @@ class FPBlockAverager(object):
                          (c * x)
             y = a + b * e
 
-            **Arguments:**
-                :*x*: x
-                :*a*: Final y value; y(+∞) = a
-                :*b*: Scale
-                :*c*: Power
+            Arguments:
+              x (float): x
+              a (float): Final y value; y(+∞) = a
+              b (float): Scale
+              c (float): Power
 
-            **Returns:**
-                :*y*: y(x)
+            Returns:
+              y (float): y(x)
             """
             return a + b * np.exp(c * x)
 
@@ -205,15 +223,15 @@ class FPBlockAverager(object):
                            d
                 1 + (x / c)
 
-            **Arguments:**
-                :*x*: x
-                :*a*: Initial y value; y(-∞) = a
-                :*b*: Final y value; y(+∞) = b
-                :*c*: Center of sigmoid; y(c) = (a + b) / 2
-                :*d*: Power
+            Arguments:
+              x (float): x
+              a (float): Initial y value; y(-∞) = a
+              b (float): Final y value; y(+∞) = b
+              c (float): Center of sigmoid; y(c) = (a + b) / 2
+              d (float): Power
 
-            **Returns:**
-                :*y*: y(x)
+            Returns:
+              y (float): y(x)
             """
             return b + ((a - b) / (1 + (x / c) ** d))
 
@@ -285,14 +303,12 @@ class FPBlockAverager(object):
 
     def plot(self, **kwargs):
         """
-        Plots block average results using matplotlib
+        Plots block average results using matplotlib.
         """
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from matplotlib.backends.backend_pdf import PdfPages
-        matplotlib.rcParams["mathtext.default"] = "regular"
-        matplotlib.rcParams["pdf.fonttype"]     = "truetype"
 
         outfile = kwargs.get("outfile", self.name.replace(" ", "_") + ".pdf")
 
@@ -350,8 +366,8 @@ class FPBlockAverager(object):
             figure.savefig(pdf_outfile, format = "pdf")
         print("Block average figure saved to '{0}'".format(outfile))
 
-    def print_debug(self, length = True, block = True, fit = True,
-          fit_parameters = True):
+    def print_debug(self, length=True, block=True, fit=True,
+          fit_parameters=True):
         """
         Prints debug information
 
@@ -377,45 +393,100 @@ class FPBlockAverager(object):
         if fit_parameters and hasattr(self, "debug_fit_parameters"):
             print(self.debug_fit_parameters)
 
+    def main(self, parser=None):
+        """
+        Provides command-line functionality.
+
+        Arguments:
+          parser (ArgumentParser, optional): argparse argument parser;
+            enables sublass to instantiate parser and add arguments;
+            feature not well tested
+        """
+        import argparse
+        from inspect import getmodule
+
+        if parser is None:
+            parser = argparse.ArgumentParser(
+              description     = getmodule(self.__class__).__doc__,
+              formatter_class = argparse.RawTextHelpFormatter)
+
+        parser.add_argument(
+          "-infile",
+          type     = str,
+          required = True,
+          help     = "Input file; may be text file containing single column "
+                     "of values, or a numpy file (.npy) containg a 1-dimensional "
+                     "array")
+
+        parser.add_argument(
+          "-name",
+          type     = str,
+          help     = "Dataset name (default: current time)")
+
+        parser.add_argument(
+          "-outfile",
+          type     = str,
+          default  = "block_average.txt",
+          help     = "Output text file (default: %(default)s)")
+
+        parser.add_argument(
+          "-outfigure",
+          type     = str,
+          default  = "block_average.pdf",
+          help     = "Output figure file (default: %(default)s)")
+
+        verbosity = parser.add_mutually_exclusive_group()
+
+        verbosity.add_argument(
+          "-v",
+          "--verbose",
+          action   = "count",
+          default  = 1,
+          help     = "Enable verbose output, may be specified more than once")
+
+        verbosity.add_argument(
+          "-q",
+          "--quiet",
+          action   = "store_const",
+          const    = 0,
+          default  = 1,
+          dest     = "verbose",
+          help     = "Disable verbose output")
+
+        parser.add_argument(
+          "-d",
+          "--debug",
+          action   = "count",
+          default  = 0,
+          help     = "Enable debug output, may be specified more than once")
+
+        arguments = vars(parser.parse_args())
+
+        infile = arguments.pop("infile")
+        if infile.endswith(".npy"):
+            dataset = np.load(infile)
+        else:
+            dataset = np.loadtxt(infile)
+
+        if arguments["debug"] >= 1:
+            from os import environ
+            from .debug import db_s, db_kv
+
+            db_s("Environment variables")
+            for key in sorted(environ):
+                db_kv(key, environ[key], 1)
+
+            db_s("Command-line arguments")
+            for key in sorted(arguments.keys()):
+                db_kv(key, arguments[key], 1)
+
+        block_averager = FPBlockAverager(dataset=dataset, debug=True,
+                           **arguments)
+        block_averager.select_lengths(mode=2)
+        block_averager.calculate_blocks()
+        block_averager.fit_curves()
+        block_averager.plot(**arguments)
+
 #################################### MAIN #####################################
 if __name__ == "__main__":
-    import argparse
-
-    parser            = argparse.ArgumentParser(
-      description     = __doc__,
-      formatter_class = argparse.RawTextHelpFormatter)
-
-    parser.add_argument(
-      "-infile",
-      type     = str,
-      required = True,
-      help     = "Input file; may be text file containing single column "
-                 "of values, or a numpy file (.npy) containg a 1-dimensional "
-                 "array")
-
-    parser.add_argument(
-      "-name",
-      type     = str,
-      help     = "Dataset name (default: current time)")
-
-    parser.add_argument(
-      "-outfile",
-      type     = str,
-      default  = "block_average.pdf",
-      help     = "Output pdf file (default: %(default)s)")
-
-    kwargs = vars(parser.parse_args())
-
-    infile = kwargs.pop("infile")
-    if infile.endswith(".npy"):
-        dataset = np.load(infile)
-    else:
-        dataset = np.loadtxt(infile)
-
-    block_averager = FPBlockAverager(dataset = dataset, debug = True, **kwargs)
-    block_averager.select_lengths(mode = 2)
-    block_averager.calculate_blocks()
-    block_averager.fit_curves()
-    block_averager.plot(**kwargs)
-
-
+    FPBlockAverager().main()
