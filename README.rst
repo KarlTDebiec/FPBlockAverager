@@ -5,7 +5,7 @@ standard error of time-correlated data using the block-averaging method of
 Flyvbjerg and Petersen, as described in `Flyvbjerg, H., and Petersen, H. G.
 Error estimates on averages of correlated data. Journal of Chemical Physics.
 1989. 91 (1). 461-466.
-<http://scitation.aip.org/content/aip/journal/jcp/91/1/10.1063/1.457480>`_.
+<http://scitation.aip.org/content/aip/journal/jcp/91/1/10.1063/1.457480>`_
 
 This is currently a work in progress and not in a functional state.
 
