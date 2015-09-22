@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #   fpblockaverager.FPBlockAverager.py
 #
-#   Copyright (C) 2014-2015 Karl T Debiec
+#   Copyright (C) 2012-2015 Karl T Debiec
 #   All rights reserved.
 #
 #   This software may be modified and distributed under the terms of the
@@ -58,18 +58,15 @@ class FPBlockAverager(object):
               blockings=blockings, **kwargs)
             blockings, parameters = self.fit_curves(dataset=dataset,
               blockings=blockings, **kwargs)
+            self.plot(blockings=blockings, parameters=parameters, **kwargs)
 
     def load_datasets(self, infile, verbose=1, **kwargs):
         """
         Load datasets from text, numpy, or hdf formats.
 
         .. todo:
-          - Support multiple datasets and sources smoothly
           - Check for file presence and raise nice errors
           - Support text, npy, hdf5
-          - Verbose output as datasets are loaded
-          - Expand enviroment variables
-          - Somehow mark columns for use?
         """
         from os.path import expandvars, isfile
         import pandas
@@ -85,9 +82,12 @@ class FPBlockAverager(object):
             if len(infile) > 2:
                 fields = infile[2:]
                 dataset = dataset[fields]
-            if verbose >= 1:
-                print("Dataset '{0}[{1}][{2}]' loaded".format(path, address,
-                ", ".join(fields)))
+                if verbose >= 1:
+                    print("Dataset '{0}[{1}][{2}]' loaded".format(path,
+                      address, ", ".join(fields)))
+            else:
+                if verbose >= 1:
+                    print("Dataset '{0}[{1}]' loaded".format(path, address))
             if verbose >= 2:
                 print(dataset)
         else:
@@ -320,70 +320,93 @@ class FPBlockAverager(object):
 
         return blockings, parameters
 
-    def plot(self, **kwargs):
+    @arg_or_attr("blockings", "parameters")
+    def plot(self, blockings, parameters, verbose=1, debug=0,
+        outfile="test.pdf", **kwargs):
         """
         Plots block average results using matplotlib.
+
+        Arguments:
+          verbose (int): Level of verbose output
+          debug (int): Level of debug output
+          kwargs (dict): Additional keyword arguments
+        Returns:
+
         """
         import matplotlib
-        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from matplotlib.backends.backend_pdf import PdfPages
 
-        outfile = kwargs.get("outfile", self.name.replace(" ", "_") + ".pdf")
+        fields = [n[:-5] for n in blockings.columns.tolist()
+          if n.endswith("_mean")]
+        n_fields = len(fields)
+        fit_exp = True
+        fit_sig = True
 
-        figure, subplots = plt.subplots(self.n_fields, 2,
-          figsize = [11, 2 + self.n_fields * 3],
-          subplot_kw = dict(autoscale_on = True))
-        if self.n_fields == 1:
-            subplots = np.expand_dims(subplots, 0)
+        # Generate and format figure and subplots
+        figure, subplots = plt.subplots(n_fields, 2,
+          figsize=[6.5, 2+n_fields*1.5],
+          subplot_kw=dict(autoscale_on = True))
+#        if self.n_fields == 1:
+#            subplots = np.expand_dims(subplots, 0)
+        # Must adjust for 1 or two column
         figure.subplots_adjust(
-          left   = 0.10, wspace = 0.3, right = 0.97,
-          bottom = 0.10, hspace = 0.4, top   = 0.95)
-        figure.suptitle(self.name)
-        
-        for i in range(self.n_fields):
-            subplots[i,0].set_title(self.fieldnames[i])
-            subplots[i,1].set_title(self.fieldnames[i])
-            subplots[i,0].set_xlabel("Block Length")
-            subplots[i,1].set_xlabel("Number of Block Transformations")
-            subplots[i,0].set_ylabel("$\sigma$")
-            subplots[i,1].set_ylabel("$\sigma$")
+          left   = 0.10, wspace = 0.1, right = 0.90,
+          bottom = 0.10, hspace = 0.1, top   = 0.90)
+#        figure.suptitle(self.name)
+        for i, field in enumerate(fields):
+            # Format x
+            if i != n_fields - 1:
+                subplots[i,0].set_xticklabels([])
+                subplots[i,1].set_xticklabels([])
 
-            if hasattr(self, "stderrs"):
-                subplots[i,0].plot(self.block_lengths, self.stderrs[:,i],
-                  color = "blue")
-                subplots[i,1].plot(self.n_transforms, self.stderrs[:,i],
-                  color = "blue")
-            if hasattr(self, "stderrs_stddevs"):
-                subplots[i,0].fill_between(self.block_lengths,
-                  self.stderrs[:,i] - 1.96 * self.stderrs_stddevs[:,i],
-                  self.stderrs[:,i] + 1.96 * self.stderrs_stddevs[:,i],
-                  lw = 0, alpha = 0.5, color = "blue")
-                subplots[i,1].fill_between(self.n_transforms,
-                  self.stderrs[:,i] - 1.96 * self.stderrs_stddevs[:,i],
-                  self.stderrs[:,i] + 1.96 * self.stderrs_stddevs[:,i],
-                  lw = 0, alpha = 0.5, color = "blue")
-            if hasattr(self, "exp_fit"):
-                if hasattr(self, "exp_fit_parameters"):
-                    kwargs = dict(label = "SE = {0:4.2e}".format(
-                               self.exp_fit_parameters[0,i]))
-                else:
-                    kwargs = {}
-                subplots[i,0].plot(self.block_lengths, self.exp_fit[:,i],
-                  color = "red", **kwargs)
-                subplots[i,0].legend(loc = 4)
-            if hasattr(self, "sig_fit"):
-                if hasattr(self, "sig_fit_parameters"):
-                    kwargs = dict(label = "SE = {0:4.2e}".format(
-                               self.sig_fit_parameters[1,i]))
-                else:
-                    kwargs = {}
-                subplots[i,1].plot(self.n_transforms, self.sig_fit[:,i],
-                  color = "red", **kwargs)
-                subplots[i,1].legend(loc = 4)
+            # Format y
+            subplots[i,0].set_ylabel("σ", rotation="horizontal")
+            subplots[i,1].set_yticklabels([])
+            # Add y2 label
+
+            # set xticks and yticks
+        subplots[n_fields-1,0].set_xlabel("Block Length")
+        subplots[n_fields-1,1].set_xlabel("Number of Block Transformations")
+
+        for i, field in enumerate(fields):
+            subplots[i,0].plot(
+              blockings["block_length"], blockings[field+"_se"],
+              color="blue")
+            subplots[i,1].plot(
+              blockings["n_transforms"], blockings[field+"_se"],
+              color="blue")
+            se_sd = blockings[field+"_se_sd"]
+            subplots[i,0].fill_between(blockings["block_length"], 
+              blockings[field+"_se"] - 1.96 * blockings[field+"_se_sd"],
+              blockings[field+"_se"] + 1.96 * blockings[field+"_se_sd"],
+              lw=0, alpha=0.5, color="blue")
+            subplots[i,1].fill_between(blockings["n_transforms"],
+              blockings[field+"_se"] - 1.96 * blockings[field+"_se_sd"],
+              blockings[field+"_se"] + 1.96 * blockings[field+"_se_sd"],
+              lw=0, alpha=0.5, color="blue")
+            if fit_exp:
+                subplots[i,0].plot(
+                  blockings["block_length"], blockings[field+"_exp_fit"],
+                  color="red")
+                subplots[i,1].plot(
+                  blockings["n_transforms"], blockings[field+"_exp_fit"],
+                  color="red")
+            if fit_sig:
+                subplots[i,0].plot(
+                  blockings["block_length"], blockings[field+"_sig_fit"],
+                  color="green")
+                subplots[i,1].plot(
+                  blockings["n_transforms"], blockings[field+"_sig_fit"],
+                  color="green")
+#                subplots[i,1].legend(loc = 4)
+
+        # After plotting, cut last y and x label of out plots
+
+        # Save and return
         with PdfPages(outfile) as pdf_outfile:
-            figure.savefig(pdf_outfile, format = "pdf")
-        print("Block average figure saved to '{0}'".format(outfile))
+            figure.savefig(pdf_outfile, format="pdf")
+        return None
 
     def main(self, parser=None):
         """
@@ -429,13 +452,13 @@ class FPBlockAverager(object):
           help     = "Divide dataset into 2,3,4,5,... blocks rather than "
                      "2,4,8,16,... blocks; recommended for testing only")
 
-        parser.add_argument(
-          "-outfile",
-          type     = str,
-          nargs    = "+",
-          action   = "append",
-          help     = "Output results to file")
-
+#        parser.add_argument(
+#          "-outfile",
+#          type     = str,
+#          nargs    = "+",
+#          action   = "append",
+#          help     = "Output results to file")
+#
 #        parser.add_argument(
 #          "-outfigure",
 #          type     = str,
