@@ -7,8 +7,6 @@ Error estimates on averages of correlated data. Journal of Chemical Physics.
 1989. 91 (1). 461-466.
 <http://scitation.aip.org/content/aip/journal/jcp/91/1/10.1063/1.457480>`_
 
-This is currently a work in progress and not in a functional state.
-
 Dependencies
 ------------
 FPBlockAverager supports Python 2.7 and 3.4, and requires the following
@@ -17,7 +15,8 @@ packages:
 - numpy
 - pandas
 
-The following packges are also supported for visualization:
+The following packges are also supported for visualization (implementation in
+progress):
 
 - matplotlib
 - seaborn
