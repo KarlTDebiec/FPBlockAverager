@@ -14,10 +14,13 @@ Dependencies
 FPBlockAverager supports Python 2.7 and 3.4, and requires the following
 packages:
 
-- matplotlib
 - numpy
 - pandas
-- six
+
+The following packges are also supported for visualization:
+
+- matplotlib
+- seaborn
 
 FPBlockAverager has been tested with Anaconda Python 2.2.0 on Arch Linux, OSX
 Yosemite, and Windows 8.1.
