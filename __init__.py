@@ -59,8 +59,10 @@ class arg_or_attr(object):
                     if hasattr(self, name):
                         kwargs[name] = getattr(self, name)
                     else:
-                        raise ValueError("FPBlockAverager.select_blockings could "
-                          "not identify dataset.")
+                        raise ValueError(
+                          "{0}.{1} could not identify argument '{2}'.".format(
+                          self.__class__.__name__, decorator.method.__name__,
+                          name))
 
             return method(self, *args, **kwargs)
 
