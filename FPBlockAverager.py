@@ -28,7 +28,18 @@ class FPBlockAverager(object):
 
     Flyvbjerg, H., and Petersen, H. G. Error estimates on averages of
     correlated data. Journal of Chemical Physics. 1989. 91 (1). 461-466.
+
+    .. todo:
+      - Support for multiprocessing would be nice
+      - Possibly support wwmgr? Could be nice exercise
+      - Test Python 3
+      - Support myplotspec for formatting?
+      - Reimplement min_n_blocks
+      - Support omitting blockings outside min_n_blocks and max cut from
+        fit, but still calculating
+      - Use a decorator to pull datasets, blockings, and fits from self?
     """
+
     def __init__(self, **kwargs):
         """
         Initializes.
@@ -55,23 +66,6 @@ class FPBlockAverager(object):
         """
         from time import strftime
 
-#        self.dataset      = dataset
-#        self.full_length  = kwargs.pop("full_length", dataset.shape[0])
-#        if "n_fields" in kwargs:
-#            self.n_fields = kwargs.pop("n_fields")
-#        elif len(dataset.shape) > 1:
-#            self.n_fields = dataset.shape[1]
-#        else: 
-#            self.n_fields = 1
-#        self.name         = kwargs.pop("name", strftime("%Y-%m-%d %H:%M:%S"))
-#        self.fieldnames   = kwargs.pop("fieldnames", range(self.n_fields))
-#        self.factor       = factor
-#        self.min_n_blocks = min_n_blocks
-#        self.max_omitted  = max_omitted
-#        self.debug        = debug
-#
-#        self.full_length  = self.full_length - (self.full_length % factor)
-
     def __call__(self, **kwargs):
         """
         Carries out standard error calculation.
@@ -81,9 +75,8 @@ class FPBlockAverager(object):
         """
         dataset = self.load_datasets(**kwargs)
         blockings = self.select_blockings(dataset=dataset, **kwargs)
-        print(dataset)
-        print(blockings)
-#        self.calculate_blocks(**kwargs)
+        blockings = self.calculate_blockings(dataset=dataset,
+                      blockings=blockings, **kwargs)
 #        self.fit_curves(**kwargs)
 #        if self.debug:
 #            self.plot()
@@ -91,6 +84,14 @@ class FPBlockAverager(object):
     def load_datasets(self, infile, **kwargs):
         """
         Load datasets from text, numpy, or hdf formats.
+
+        .. todo:
+          - Support multiple datasets and sources smoothly
+          - Check for file presence and raise nice errors
+          - Support text, npy, hdf5
+          - Verbose output as datasets are loaded
+          - Expand enviroment variables
+          - Somehow mark columns for use
         """
         import pandas
 
@@ -109,47 +110,49 @@ class FPBlockAverager(object):
         import pandas
         import numpy as np
 
+        # Get dataset and determine length
         if dataset is None:
             if hasattr(self, "dataset"):
                 dataset = self.dataset
             else:
                 raise ValueError("FPBlockAverager.select_blockings could "
                   "not identify dataset.")
-
         full_length = dataset.shape[0]
 
+        # Determine number of blocks, block lengths, total lengths used,
+        #   and number of transforms
         if all_factors:
-            # Must remove duplicates
-            n_blocks = np.array(sorted(set(
-              range(1, 2 ** int(np.floor(np.log2(full_length)))))), np.int)
             block_lengths = np.array(sorted(set(
-              np.array([full_length / n for n in n_blocks], np.int))))[::-1]
-            n_blocks = np.array(full_length / block_lengths, np.int)
+              range(1, 2 ** int(np.floor(np.log2(full_length)))))), np.int)
+            n_blocks = np.array(sorted(set(
+              np.array([full_length/n for n in block_lengths],
+              np.int))))[::-1][:-1]
+            block_lengths = np.array(full_length / n_blocks, np.int)
         else:
-            n_blocks = np.array([2 ** i for i in
-                         range(int(np.floor(np.log2(full_length))))], np.int)
-            block_lengths = np.array([full_length / n for n in n_blocks],
-                              np.int)
-        total_lengths = n_blocks * block_lengths
-        n_transforms  = np.log2(n_blocks)
+            block_lengths = np.array([2 ** i for i in
+              range(int(np.floor(np.log2(full_length))))], np.int)
+            n_blocks = np.array([full_length/n for n in block_lengths],
+              np.int)
+        used_lengths = n_blocks * block_lengths
+        n_transforms  = np.log2(block_lengths)
 
         # Cut blockings fot which more than max_cut proprotion of
-        # dataset must be omitted
-        max_cut_indexes = np.where(total_lengths/full_length >= 1-max_cut)[0]
+        #   dataset must be omitted
+        max_cut_indexes = np.where(used_lengths/full_length >= 1-max_cut)[0]
         n_blocks = n_blocks[max_cut_indexes]
         block_lengths = block_lengths[max_cut_indexes]
-        total_lengths = total_lengths[max_cut_indexes]
+        used_lengths = used_lengths[max_cut_indexes]
         n_transforms = n_transforms[max_cut_indexes]
 
-        blockings = pandas.DataFrame(
-          np.column_stack((
-          n_transforms, n_blocks, block_lengths, total_lengths)),
-          columns=["n transforms", "n blocks", "block length",
-          "total length used"])
+        # Organize and return
+        blockings = pandas.DataFrame(np.column_stack((n_transforms,
+                      n_blocks, block_lengths, used_lengths)),
+                      columns=["n_transforms", "n_blocks",
+                      "block_length", "used_length"])
 
         return blockings
 
-    def calculate_blocks(self, **kwargs):
+    def calculate_blockings(self, dataset, blockings, **kwargs):
         """
         Calculates standard error for each block transform.
 
@@ -161,31 +164,47 @@ class FPBlockAverager(object):
         Arguments:
           kwargs (dict): Additional keyword arguments
         """
-        self.means           = np.zeros((self.block_lengths.size,
-                                         self.n_fields), np.float)
-        self.stderrs         = np.zeros(self.means.shape, np.float)
-        self.stderrs_stddevs = np.zeros(self.means.shape, np.float)
+        import numpy as np
+        import pandas
 
-        for transform_i, block_length, n_blocks, total_length in zip(
-          range(self.block_lengths.size), self.block_lengths, self.n_blocks,
-          self.total_lengths):
-            transformed   = self.transform(block_length, n_blocks,
-                              total_length, **kwargs)
-            mean          = np.mean(transformed, axis = 0)
-            stddev        = np.std(transformed,  axis = 0)
-            stderr        = stddev / np.sqrt(n_blocks - 1)
-            stderr_stddev = stderr / np.sqrt(2 * (n_blocks - 1))
-            self.means[transform_i,:]           = mean
-            self.stderrs[transform_i,:]         = stderr
-            self.stderrs_stddevs[transform_i,:] = stderr_stddev
+        if dataset is None:
+            if hasattr(self, "dataset"):
+                dataset = self.dataset
+            else:
+                raise ValueError("FPBlockAverager.select_blockings could "
+                  "not identify dataset.")
+        if blockings is None:
+            if hasattr(self, "blockings"):
+                blockings = self.blockings
+            else:
+                raise ValueError("FPBlockAverager.select_blockings could "
+                  "not identify blockings.")
 
-        self.debug_block = ["{0:>12.5f} {1:>12.5f} {2:>12.5f}".format(
-          a, b, c) for a, b, c in zip(self.means[:,0],
-          self.stderrs[:,0], self.stderrs_stddevs[:,0])]
-        if self.debug:
-            self.print_debug()
+        # Construct destination for results
+        columns = [["{0}_mean".format(c), "{0}_se".format(c),
+                    "{0}_se_sd".format(c)] for c in dataset.columns]
+        columns = [item for sublist in columns for item in sublist]
+        analysis = pandas.DataFrame(np.zeros((blockings.shape[0],
+          dataset.shape[1]*3)), columns=columns)
 
-    def transform(self, block_length, n_blocks, total_length, **kwargs):
+        # Calculate mean, stderr, and stddev of stderr for each blocking
+        for i, row in blockings.iterrows():
+            transformed = self.transform(n_blocks=row["n_blocks"],
+              block_length=row["block_length"], dataset=dataset,
+              **kwargs)
+            mean = np.mean(transformed.values, axis = 0)
+            stddev = np.std(transformed.values,  axis = 0)
+            stderr = stddev / np.sqrt(row["n_blocks"] - 1)
+            stderr_stddev = stderr / np.sqrt(2 * (row["n_blocks"] - 1))
+            analysis.values[i,0::3] = mean
+            analysis.values[i,1::3] = stderr
+            analysis.values[i,2::3] = stderr_stddev
+
+        # Organize and return
+        blockings = blockings.join(analysis)
+        return blockings
+
+    def transform(self, n_blocks, block_length, dataset=None, **kwargs):
         """
         Prepares a block-transformed dataset.
 
@@ -193,14 +212,26 @@ class FPBlockAverager(object):
           block_length (int): Length of each block in transformed
             dataset
           n_blocks (int): Number of blocks in transformed dataset 
-          total_length (int): Number of frames in transformed dataset
+          used_length (int): Number of frames in transformed dataset
           kwargs (dict): Additional keyword arguments
+
+        .. todo:
+          - Is there an appropriate way to do this using pandas?
         """
-        transformed = np.zeros((n_blocks, self.n_fields), np.float)
-        for i in range(transformed.shape[1]):
-            reshaped = np.reshape(self.dataset[:total_length, i], 
-                         (n_blocks, block_length))
-            transformed[:,i] = np.mean(reshaped, axis = 1)
+        import numpy as np
+        import pandas
+
+        if dataset is None:
+            if hasattr(self, "dataset"):
+                dataset = self.dataset
+            else:
+                raise ValueError("FPBlockAverager.select_blockings could "
+                  "not identify dataset.")
+
+        reshaped = np.reshape(dataset.values[:n_blocks*block_length],
+                     (n_blocks, block_length, dataset.shape[1]))
+        transformed = pandas.DataFrame(np.mean(reshaped, axis = 1),
+                        columns=dataset.columns)
         return transformed
 
     def fit_curves(self, **kwargs):
@@ -281,40 +312,6 @@ class FPBlockAverager(object):
                     self.sig_fit[:,i] = np.nan
                     self.sig_fit_parameters[:,i] = [np.nan,np.nan,np.nan,np.nan]
 
-        self.debug_fit = ["{0:>12.5f} {1:>12.5f}".format(
-          a, b) for a, b in zip(self.exp_fit[:,0], self.sig_fit[:,0])]
-        self.debug_fit_parameters = "".join(["Exponential Fit:"] + 
-          ["\n        "] +
-          ["{0:>12}".format(str(fieldname)[:12])
-            for fieldname in self.fieldnames] +
-          ["\nA (SE)  "] +
-          ["{0:>12.5f}".format(self.exp_fit_parameters[0,i])
-            for i in range(self.n_fields)] +
-          ["\nB       "] + 
-          ["{0:>12.5f}".format(self.exp_fit_parameters[1,i])
-            for i in range(self.n_fields)] +
-          ["\nC       "] + 
-          ["{0:>12.5f}".format(self.exp_fit_parameters[2,i])
-            for i in range(self.n_fields)] +
-          ["\nSigmoidal Fit:"] + 
-          ["\n        "] + 
-          ["{0:>12}".format(str(fieldname)[:12])
-            for fieldname in self.fieldnames] +
-          ["\nA       "] +
-          ["{0:>12.5f}".format(self.sig_fit_parameters[0,i])
-            for i in range(self.n_fields)] +
-          ["\nB (SE)  "] + 
-          ["{0:>12.5f}".format(self.sig_fit_parameters[1,i])
-            for i in range(self.n_fields)] +
-          ["\nC       "] + 
-          ["{0:>12.5f}".format(self.sig_fit_parameters[2,i])
-            for i in range(self.n_fields)] +
-          ["\nD       "] + 
-          ["{0:>12.5f}".format(self.sig_fit_parameters[3,i])
-            for i in range(self.n_fields)])
-        if self.debug:
-            self.print_debug()
-
     def plot(self, **kwargs):
         """
         Plots block average results using matplotlib.
@@ -379,33 +376,6 @@ class FPBlockAverager(object):
         with PdfPages(outfile) as pdf_outfile:
             figure.savefig(pdf_outfile, format = "pdf")
         print("Block average figure saved to '{0}'".format(outfile))
-
-    def print_debug(self, length=True, block=True, fit=True,
-          fit_parameters=True):
-        """
-        Prints debug information
-
-        Outputs standard error and fits for first state only
-        """
-        if length and hasattr(self, "debug_length"):
-            print("N_TRANSFORMS     N_BLOCKS BLOCK_LENGTH TOTAL_LENGTH",
-              end = "")
-        if block and hasattr(self, "debug_block"):
-            print("        MEAN       STDERR    SE_STDDEV", end = "")
-        if fit and hasattr(self, "debug_fit"):
-            print("     EXP FIT     SIG FIT", end = "")
-        print()
-
-        for i in range(self.n_transforms.size):
-            if length and hasattr(self, "debug_length"):
-                print(self.debug_length[i], end = "")
-            if block and hasattr(self, "debug_block"):
-                print(self.debug_block[i], end = "")
-            if fit and hasattr(self, "debug_fit"):
-                print(self.debug_fit[i], end = "")
-            print()
-        if fit_parameters and hasattr(self, "debug_fit_parameters"):
-            print(self.debug_fit_parameters)
 
     def main(self, parser=None):
         """
