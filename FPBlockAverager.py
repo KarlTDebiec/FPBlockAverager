@@ -39,32 +39,7 @@ class FPBlockAverager(object):
         fit, but still calculating
       - Use a decorator to pull datasets, blockings, and fits from self?
     """
-
-    def __init__(self, **kwargs):
-        """
-        Initializes.
-
-        Arguments:
-          dataset (DataFrame): Dataset
-          name (str): Name of dataset
-          fieldnames (list): Name of fields of dataset
-          full_length (int): Full length of dataset
-          factor (int): Factor by which all block sizes must be
-            divisible
-          min_n_blocks (int): Minimum block size for transformations
-          max_omitted (float): Maximum proportion of original dataset
-            that may be omitted from end of block-transformed dataset
-          verbose (int): Level of verbose output
-          debug (int): Level of debug output
-          kwargs (dict): Additional keyword arguments
-
-        .. todo:
-          - Fix
-          - Clean up debug; looks embarrisingly outdated
-          - Add example data sets and plots
-          - Load from hdf5 using pandas or otherwise
-        """
-        from time import strftime
+    from . import arg_or_attr
 
     def __call__(self, **kwargs):
         """
@@ -72,13 +47,15 @@ class FPBlockAverager(object):
 
         Arguments:
           kwargs (dict): Additional keyword arguments
+
+        .. todo:
+          - loop over infiles arguments
         """
-        dataset = self.load_datasets(**kwargs)
-        blockings = self.select_blockings(dataset=dataset, **kwargs)
-        blockings = self.calculate_blockings(dataset=dataset,
-          blockings=blockings, **kwargs)
-        blockings, parameters = self.fit_curves(dataset=dataset,
-          blockings=blockings, **kwargs)
+        self.dataset                    = self.load_datasets(**kwargs)
+        self.blockings                  = self.select_blockings(**kwargs)
+        self.blockings                  = self.calculate_blockings(**kwargs)
+        self.blockings, self.parameters = self.fit_curves(**kwargs)
+        print(self.parameters)
 
     def load_datasets(self, infile, **kwargs):
         """
@@ -98,7 +75,8 @@ class FPBlockAverager(object):
 
         return dataset
 
-    def select_blockings(self, dataset=None, max_cut=0.1,
+    @arg_or_attr("dataset")
+    def select_blockings(self, dataset, max_cut=0.1,
         all_factors=False, **kwargs):
         """
         Selects lengths of block-transformed datasets.
@@ -109,12 +87,6 @@ class FPBlockAverager(object):
         import pandas
         import numpy as np
 
-        if dataset is None:
-            if hasattr(self, "dataset"):
-                dataset = self.dataset
-            else:
-                raise ValueError("FPBlockAverager.select_blockings could "
-                  "not identify dataset.")
         full_length = dataset.shape[0]
 
         # Determine number of blocks, block lengths, total lengths used,
@@ -148,6 +120,7 @@ class FPBlockAverager(object):
 
         return blockings
 
+    @arg_or_attr("dataset", "blockings")
     def calculate_blockings(self, dataset, blockings, **kwargs):
         """
         Calculates standard error for each block transform.
@@ -162,19 +135,6 @@ class FPBlockAverager(object):
         """
         import numpy as np
         import pandas
-
-        if dataset is None:
-            if hasattr(self, "dataset"):
-                dataset = self.dataset
-            else:
-                raise ValueError("FPBlockAverager.select_blockings could "
-                  "not identify dataset.")
-        if blockings is None:
-            if hasattr(self, "blockings"):
-                blockings = self.blockings
-            else:
-                raise ValueError("FPBlockAverager.select_blockings could "
-                  "not identify blockings.")
 
         # Construct destination for results
         columns = [[c+"_mean", c+"_se", c+"_se_sd"] for c in dataset.columns]
@@ -195,9 +155,9 @@ class FPBlockAverager(object):
             analysis.values[i,2::3] = stderr_stddev
 
         # Organize and return
-        blockings = blockings.join(analysis)
-        return blockings
+        return blockings.join(analysis)
 
+    @arg_or_attr("dataset")
     def transform(self, n_blocks, block_length, dataset=None, **kwargs):
         """
         Prepares a block-transformed dataset.
@@ -215,20 +175,14 @@ class FPBlockAverager(object):
         import numpy as np
         import pandas
 
-        if dataset is None:
-            if hasattr(self, "dataset"):
-                dataset = self.dataset
-            else:
-                raise ValueError("FPBlockAverager.select_blockings could "
-                  "not identify dataset.")
-
         reshaped = np.reshape(dataset.values[:n_blocks*block_length],
           (n_blocks, block_length, dataset.shape[1]))
         transformed = pandas.DataFrame(np.mean(reshaped, axis=1),
           columns=dataset.columns)
         return transformed
 
-    def fit_curves(self, dataset=None, blockings=None, fit_exp=True,
+    @arg_or_attr("dataset", "blockings")
+    def fit_curves(self, dataset, blockings, fit_exp=True,
         fit_sig=True, verbose=1, debug=0, **kwargs):
         """
         Fits exponential and sigmoid curves to block-transformed data.
@@ -275,19 +229,6 @@ class FPBlockAverager(object):
               y (float): y(x)
             """
             return b + ((a - b) / (1 + (x / c) ** d))
-
-        if dataset is None:
-            if hasattr(self, "dataset"):
-                dataset = self.dataset
-            else:
-                raise ValueError("FPBlockAverager.fit_curves could "
-                  "not identify dataset.")
-        if blockings is None:
-            if hasattr(self, "blockings"):
-                blockings = self.blockings
-            else:
-                raise ValueError("FPBlockAverager.fit_curves could "
-                  "not identify blockings.")
 
         # Construct destinations for results
         fields = dataset.columns.tolist()
@@ -465,12 +406,13 @@ class FPBlockAverager(object):
           help     = "Divide dataset into 2,3,4,5,... blocks rather than "
                      "2,4,8,16,... blocks; recommended for testing only")
 
-#        parser.add_argument(
-#          "-outfile",
-#          type     = str,
-#          default  = "block_average.txt",
-#          help     = "Output text file (default: %(default)s)")
-#
+        parser.add_argument(
+          "-outfile",
+          type     = str,
+          nargs    = "+",
+          action   = "append",
+          help     = "Output results to file")
+
 #        parser.add_argument(
 #          "-outfigure",
 #          type     = str,
