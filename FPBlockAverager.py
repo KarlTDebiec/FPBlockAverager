@@ -49,15 +49,17 @@ class FPBlockAverager(object):
           kwargs (dict): Additional keyword arguments
 
         .. todo:
-          - loop over infiles arguments
+          - loop over infile arguments
         """
-        self.dataset                    = self.load_datasets(**kwargs)
-        self.blockings                  = self.select_blockings(**kwargs)
-        self.blockings                  = self.calculate_blockings(**kwargs)
-        self.blockings, self.parameters = self.fit_curves(**kwargs)
-        print(self.parameters)
+        for infile in kwargs.pop("infile"):
+            dataset   = self.load_datasets(infile=infile, **kwargs)
+            blockings = self.select_blockings(dataset=dataset,**kwargs)
+            blockings = self.calculate_blockings(dataset=dataset,
+              blockings=blockings, **kwargs)
+            blockings, parameters = self.fit_curves(dataset=dataset,
+              blockings=blockings, **kwargs)
 
-    def load_datasets(self, infile, **kwargs):
+    def load_datasets(self, infile, verbose=1, **kwargs):
         """
         Load datasets from text, numpy, or hdf formats.
 
@@ -69,9 +71,27 @@ class FPBlockAverager(object):
           - Expand enviroment variables
           - Somehow mark columns for use?
         """
+        from os.path import expandvars, isfile
         import pandas
 
-        dataset = pandas.read_hdf(infile[0][0], infile[0][1])
+        path = expandvars(infile[0])
+        if not isfile(path):
+            raise Exception("infile not found")
+        if path.endswith(".h5") or path.endswith(".hdf5"):
+            if len(infile) < 2:
+                raise Exception("need address within h5")
+            address = infile[1]
+            dataset = pandas.read_hdf(path, address)
+            if len(infile) > 2:
+                fields = infile[2:]
+                dataset = dataset[fields]
+            if verbose >= 1:
+                print("Dataset '{0}[{1}][{2}]' loaded".format(path, address,
+                ", ".join(fields)))
+            if verbose >= 2:
+                print(dataset)
+        else:
+            raise Exception("only hdf5 input currently supported")
 
         return dataset
 
@@ -294,6 +314,9 @@ class FPBlockAverager(object):
         if fit_sig:
             blockings = blockings.join(sig_fit)
         blockings = blockings[columns]
+
+        if verbose >= 1:
+            print(parameters)
 
         return blockings, parameters
 
