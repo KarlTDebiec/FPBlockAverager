@@ -209,6 +209,10 @@ class FPBlockAverager(object):
 
         Arguments:
           kwargs (dict): Additional keyword arguments
+
+        .. todo:
+          - if exp a or sig b is negative, set to NaN and print a
+            warning
         """
         import warnings
         import numpy as np
@@ -278,9 +282,14 @@ class FPBlockAverager(object):
                         a, b, c = curve_fit(exponential,
                           blockings["block_length"], blockings[field+"_se"],
                           p0=(0.01, -1.0, -0.1))[0]
-                        exp_fit[field+"_exp_fit"] = exponential(
-                          blockings["block_length"].values, a, b, c)
-                        exp_par[field] = [a, b, c]
+                        if a >= 0:
+                            exp_fit[field+"_exp_fit"] = exponential(
+                              blockings["block_length"].values, a, b, c)
+                            exp_par[field] = [a, b, c]
+                        elif verbose >= 1:
+                            print("Exponential fit for field "
+                              "'{0}' yielded negative ".format(field) +
+                              "standard error, setting values to NaN")
                     except RuntimeError:
                         if verbose >= 1:
                             print("Could not fit exponential for field "
@@ -289,11 +298,16 @@ class FPBlockAverager(object):
                     columns.append(field+"_sig_fit")
                     try:
                         a, b, c, d = curve_fit(sigmoid,
-                        blockings["n_transforms"], blockings[field+"_se"],
-                          p0 = (0.1, 0.1, 10, 1))[0]
-                        sig_fit[field+"_sig_fit"] = sigmoid(
-                          blockings["n_transforms"].values, a, b, c, d)
-                        sig_par[field] = [a, b, c, d]
+                          blockings["n_transforms"], blockings[field+"_se"],
+                          p0=(0.1, 0.1, 10, 1))[0]
+                        if b >= 0:
+                            sig_fit[field+"_sig_fit"] = sigmoid(
+                              blockings["n_transforms"].values, a, b, c, d)
+                            sig_par[field] = [a, b, c, d]
+                        elif verbose >= 1:
+                            print("Sigmoidal fit for field "
+                              "'{0}' yielded negative ".format(field) +
+                              "standard error, setting values to NaN")
                     except RuntimeError:
                         if verbose >= 1:
                             print("Could not fit sigmoid for field "
@@ -336,6 +350,7 @@ class FPBlockAverager(object):
         import matplotlib
         import matplotlib.pyplot as plt
         from matplotlib.backends.backend_pdf import PdfPages
+        import numpy as np
 
         fields = [n[:-5] for n in blockings.columns.tolist()
           if n.endswith("_mean")]
@@ -351,9 +366,10 @@ class FPBlockAverager(object):
 #            subplots = np.expand_dims(subplots, 0)
         # Must adjust for 1 or two column
         figure.subplots_adjust(
-          left   = 0.10, wspace = 0.1, right = 0.90,
-          bottom = 0.10, hspace = 0.1, top   = 0.90)
+          left   = 0.10, wspace = 0.1, right = 0.95,
+          bottom = 0.10, hspace = 0.1, top   = 0.95)
 #        figure.suptitle(self.name)
+        # Title columns for sigmoid and exponential fit
         for i, field in enumerate(fields):
             # Format x
             if i != n_fields - 1:
@@ -363,7 +379,11 @@ class FPBlockAverager(object):
             # Format y
             subplots[i,0].set_ylabel("σ", rotation="horizontal")
             subplots[i,1].set_yticklabels([])
+
             # Add y2 label
+            subplots[i,1].yaxis.set_label_position("right")
+            subplots[i,1].set_ylabel(field.title(), rotation=270, labelpad=15)
+
 
             # set xticks and yticks
         subplots[n_fields-1,0].set_xlabel("Block Length")
@@ -389,19 +409,34 @@ class FPBlockAverager(object):
                 subplots[i,0].plot(
                   blockings["block_length"], blockings[field+"_exp_fit"],
                   color="red")
-                subplots[i,1].plot(
-                  blockings["n_transforms"], blockings[field+"_exp_fit"],
-                  color="red")
+#                subplots[i,1].plot(
+#                  blockings["n_transforms"], blockings[field+"_exp_fit"],
+#                  color="red")
             if fit_sig:
-                subplots[i,0].plot(
-                  blockings["block_length"], blockings[field+"_sig_fit"],
-                  color="green")
+#                subplots[i,0].plot(
+#                  blockings["block_length"], blockings[field+"_sig_fit"],
+#                  color="green")
                 subplots[i,1].plot(
                   blockings["n_transforms"], blockings[field+"_sig_fit"],
                   color="green")
+        # Annotate
 #                subplots[i,1].legend(loc = 4)
 
-        # After plotting, cut last y and x label of out plots
+        # Also make sure y lower bound is 0 and x upper bound is max x
+        # Scale exponential tick labels?
+        for i, field in enumerate(fields):
+            print(field)
+            # Adjust x ticks
+            xticks = subplots[i,0].get_xticks()
+            xticks = xticks[xticks <= blockings["block_length"].max()]
+            subplots[i,0].set_xbound(0, xticks[-1])
+            subplots[i,1].set_xbound(0, blockings["n_transforms"].max())
+
+            # Adjust y ticks
+            yticks = subplots[i,0].get_yticks()
+            yticks = yticks[yticks >= 0]
+            subplots[i,0].set_ybound(yticks[0], yticks[-1])
+            subplots[i,1].set_ybound(yticks[0], yticks[-1])
 
         # Save and return
         with PdfPages(outfile) as pdf_outfile:
@@ -502,6 +537,7 @@ class FPBlockAverager(object):
 
         if arguments["seaborn"] == 1:
             import seaborn
+            seaborn.set_palette("muted")
 
         if arguments["debug"] >= 1:
             from os import environ
