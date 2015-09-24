@@ -51,9 +51,13 @@ class FPBlockAverager(object):
         .. todo:
           - loop over infile arguments
         """
+        verbose = kwargs.get("verbose", 1)
+        debug = kwargs.get("debug", 1)
         for infile in kwargs.pop("infile"):
             dataset   = self.load_datasets(infile=infile, **kwargs)
             blockings = self.select_blockings(dataset=dataset,**kwargs)
+            if debug >= 1:
+                print(blockings)
             blockings = self.calculate_blockings(dataset=dataset,
               blockings=blockings, **kwargs)
             blockings, parameters = self.fit_curves(dataset=dataset,
@@ -96,7 +100,7 @@ class FPBlockAverager(object):
         return dataset
 
     @arg_or_attr("dataset")
-    def select_blockings(self, dataset, max_cut=0.1,
+    def select_blockings(self, dataset, min_n_blocks=1, max_cut=0.1,
         all_factors=False, **kwargs):
         """
         Selects lengths of block-transformed datasets.
@@ -117,11 +121,13 @@ class FPBlockAverager(object):
             n_blocks = np.array(sorted(set(
               np.array([full_length/n for n in block_lengths],
               np.int))))[::-1][:-1]
-            block_lengths = np.array(full_length/n_blocks, np.int)
+            n_blocks = n_blocks[n_blocks >= min_n_blocks]
         else:
             block_lengths = np.array([2 ** i for i in
               range(int(np.floor(np.log2(full_length))))], np.int)
             n_blocks = np.array([full_length/n for n in block_lengths], np.int)
+            n_blocks = n_blocks[n_blocks >= min_n_blocks]
+        block_lengths = np.array(full_length / n_blocks, np.int)
         used_lengths = n_blocks * block_lengths
         n_transforms = np.log2(block_lengths)
 
@@ -479,6 +485,14 @@ class FPBlockAverager(object):
                      "blocks of 2 (0.24 cut), or 16 blocks of 1 (0.24 cut); "
                      "the latter two points would be used only if max_cut is "
                      "greater than 0.24. Default: %(default)s")
+
+        parser.add_argument(
+          "-min-n-blocks",
+          type     = int,
+          dest     = "min_n_blocks",
+          default  = 1,
+          help     = "Only use blockings that include at least this number "
+                     "of blocks. Default: %(defaults)s")
 
         parser.add_argument(
           "--all-factors",
