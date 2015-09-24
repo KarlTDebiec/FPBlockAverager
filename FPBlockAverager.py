@@ -492,7 +492,7 @@ class FPBlockAverager(object):
           dest     = "min_n_blocks",
           default  = 1,
           help     = "Only use blockings that include at least this number "
-                     "of blocks. Default: %(defaults)s")
+                     "of blocks. Default: %(default)s")
 
         parser.add_argument(
           "--all-factors",
