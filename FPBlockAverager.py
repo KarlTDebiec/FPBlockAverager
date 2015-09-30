@@ -34,10 +34,11 @@ class FPBlockAverager(object):
       - Possibly support wwmgr? Could be nice exercise
       - Test Python 3
       - Support myplotspec for formatting?
-      - Reimplement min_n_blocks?
       - Support omitting blockings outside min_n_blocks and max cut from
         fit, but still calculating
       - Use a decorator to pull datasets, blockings, and fits from self?
+      - Fit to linear portion after initial fits
+      - Estimate sample size and correlation time
     """
     from . import arg_or_attr
 
@@ -371,9 +372,10 @@ class FPBlockAverager(object):
 #        if self.n_fields == 1:
 #            subplots = np.expand_dims(subplots, 0)
         # Must adjust for 1 or two column
-        figure.subplots_adjust(
-          left   = 0.10, wspace = 0.1, right = 0.95,
-          bottom = 0.10, hspace = 0.1, top   = 0.95)
+        figure.tight_layout(pad=2, h_pad=-1, w_pad=-1)
+#        figure.subplots_adjust(
+#          left   = 0.10, wspace = 0.1, right = 0.95,
+#          bottom = 0.06, hspace = 0.1, top   = 0.95)
 #        figure.suptitle(self.name)
         # Title columns for sigmoid and exponential fit
         for i, field in enumerate(fields):
