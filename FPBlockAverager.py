@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 #   fpblockaverager.FPBlockAverager.py
 #
@@ -19,7 +19,8 @@ from __future__ import absolute_import,division,print_function,unicode_literals
 if __name__ == "__main__":
     __package__ = str("fpblockaverager")
     import fpblockaverager
-from sys import exit
+import numpy as np
+import pandas as pd
 ################################### CLASSES ###################################
 class FPBlockAverager(object):
     """
@@ -65,6 +66,14 @@ class FPBlockAverager(object):
               blockings=blockings, **kwargs)
             self.plot(blockings=blockings, parameters=parameters, **kwargs)
 
+    def __init__(self, dataframe=None, **kwargs):
+        """
+        """
+        if dataframe is not None:
+            print(dataframe)
+            blockings = self.select_blockings(dataframe)
+            print(blockings)
+
     def load_datasets(self, infile, verbose=1, **kwargs):
         """
         Load datasets from text, numpy, or hdf formats.
@@ -74,7 +83,6 @@ class FPBlockAverager(object):
           - Support text, npy, hdf5
         """
         from os.path import expandvars, isfile
-        import pandas
 
         path = expandvars(infile[0])
         if not isfile(path):
@@ -83,7 +91,7 @@ class FPBlockAverager(object):
             if len(infile) < 2:
                 raise Exception("need address within h5")
             address = infile[1]
-            dataset = pandas.read_hdf(path, address)
+            dataset = pd.read_hdf(path, address)
             if len(infile) > 2:
                 fields = infile[2:]
                 dataset = dataset[fields]
@@ -100,19 +108,17 @@ class FPBlockAverager(object):
 
         return dataset
 
-    @arg_or_attr("dataset")
-    def select_blockings(self, dataset, min_n_blocks=1, max_cut=0.1,
+#    @arg_or_attr("dataset")
+    def select_blockings(self, dataframe, min_n_blocks=1, max_cut=0.1,
         all_factors=False, **kwargs):
         """
-        Selects lengths of block-transformed datasets.
+        Selects lengths of block-transformed dataframe
 
         Arguments:
           kwargs (dict): Additional keyword arguments
         """
-        import pandas
-        import numpy as np
 
-        full_length = dataset.shape[0]
+        full_length = dataframe.shape[0]
 
         # Determine number of blocks, block lengths, total lengths used,
         #   and number of transforms
@@ -133,7 +139,7 @@ class FPBlockAverager(object):
         n_transforms = np.log2(block_lengths)
 
         # Cut blockings fot which more than max_cut proprotion of
-        #   dataset must be omitted
+        #   dataframe must be omitted
         max_cut_indexes = np.where(used_lengths / full_length >= 1-max_cut)[0]
         n_blocks      = n_blocks[max_cut_indexes]
         block_lengths = block_lengths[max_cut_indexes]
@@ -141,7 +147,7 @@ class FPBlockAverager(object):
         n_transforms  = n_transforms[max_cut_indexes]
 
         # Organize and return
-        blockings = pandas.DataFrame(
+        blockings = pd.DataFrame(
           np.column_stack((n_transforms,n_blocks,block_lengths,used_lengths)),
           columns=["n_transforms", "n_blocks", "block_length", "used_length"])
 
@@ -160,13 +166,11 @@ class FPBlockAverager(object):
         Arguments:
           kwargs (dict): Additional keyword arguments
         """
-        import numpy as np
-        import pandas
 
         # Construct destination for results
         columns = [[c+"_mean", c+"_se", c+"_se_sd"] for c in dataset.columns]
         columns = [item for sublist in columns for item in sublist]
-        analysis = pandas.DataFrame(
+        analysis = pd.DataFrame(
           np.zeros((blockings.shape[0], dataset.shape[1]*3)), columns=columns)
 
         # Calculate mean, stderr, and stddev of stderr for each blocking
@@ -199,12 +203,10 @@ class FPBlockAverager(object):
         .. todo:
           - Is there an appropriate way to do this using pandas?
         """
-        import numpy as np
-        import pandas
 
         reshaped = np.reshape(dataset.values[:n_blocks*block_length],
           (n_blocks, block_length, dataset.shape[1]))
-        transformed = pandas.DataFrame(np.mean(reshaped, axis=1),
+        transformed = pd.DataFrame(np.mean(reshaped, axis=1),
           columns=dataset.columns)
         return transformed
 
@@ -222,8 +224,6 @@ class FPBlockAverager(object):
             warning
         """
         import warnings
-        import numpy as np
-        import pandas
         from scipy.optimize import curve_fit
 
         def exponential(x, a, b, c):
@@ -266,16 +266,16 @@ class FPBlockAverager(object):
         columns = ["n_transforms", "n_blocks", "block_length", "used_length"]
 
         if fit_exp:
-            exp_fit = pandas.DataFrame(
+            exp_fit = pd.DataFrame(
               np.zeros((blockings.shape[0], dataset.shape[1]))*np.nan,
               columns=[f+"_exp_fit" for f in fields])
-            exp_par = pandas.DataFrame(np.zeros((3, len(fields)))*np.nan,
+            exp_par = pd.DataFrame(np.zeros((3, len(fields)))*np.nan,
               index=["a (se)", "b", "c"], columns=fields)
         if fit_sig:
-            sig_fit = pandas.DataFrame(
+            sig_fit = pd.DataFrame(
               np.zeros((blockings.shape[0], dataset.shape[1]))*np.nan,
               columns=[f+"_sig_fit" for f in fields])
-            sig_par = pandas.DataFrame( np.zeros((4, len(fields)))*np.nan,
+            sig_par = pd.DataFrame( np.zeros((4, len(fields)))*np.nan,
               index=["a", "b (se)", "c", "d"], columns=fields)
 
         # Calculate and store fit and parameters
@@ -322,11 +322,11 @@ class FPBlockAverager(object):
 
         # Organize and return
         if fit_exp and fit_sig:
-            parameters = pandas.concat([exp_par, sig_par], keys=["exp", "sig"])
+            parameters = pd.concat([exp_par, sig_par], keys=["exp", "sig"])
         elif fit_exp:
-            parameters = pandas.concat([exp_par], keys=["exp"])
+            parameters = pd.concat([exp_par], keys=["exp"])
         elif fit_sig:
-            parameters = pandas.concat([sig_par], keys=["sig"])
+            parameters = pd.concat([sig_par], keys=["sig"])
         else:
             parameters = None
 
@@ -357,7 +357,6 @@ class FPBlockAverager(object):
         import matplotlib
         import matplotlib.pyplot as plt
         from matplotlib.backends.backend_pdf import PdfPages
-        import numpy as np
 
         fields = [n[:-5] for n in blockings.columns.tolist()
           if n.endswith("_mean")]
