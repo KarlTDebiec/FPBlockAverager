@@ -180,8 +180,8 @@ class FPBlockAverager(object):
         # Calculate mean, stderr, and stddev of stderr for each blocking
         for n_transforms, row in transformations.iterrows():
             transformed   = transform(row["n_blocks"], row["block_length"])
-            mean          = np.mean(transformed.values, axis = 0)
-            stddev        = np.std(transformed.values,  axis = 0)
+            mean          = np.mean(transformed.values, axis=0)
+            stddev        = np.std(transformed.values,  axis=0)
             stderr        = stddev / np.sqrt(row["n_blocks"] - 1)
             stderr_stddev = stderr / np.sqrt(2 * (row["n_blocks"] - 1))
             analysis.loc[n_transforms][0::3] = mean
