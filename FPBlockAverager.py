@@ -21,7 +21,7 @@ if __name__ == "__main__":
     import fpblockaverager
 import numpy as np
 import pandas as pd
-pd.set_option('display.width', 1000)
+pd.set_option('display.width', 120)
 from sys import exit
 ################################### CLASSES ###################################
 class FPBlockAverager(object):
@@ -70,11 +70,17 @@ class FPBlockAverager(object):
     def __init__(self, dataframe=None, **kwargs):
         """
         """
+        # Arguments
+        verbose = kwargs.get("verbose", 1)
+
         transformations = self.select_transformations(dataframe, **kwargs)
         blockings = self.calculate_blockings(dataframe, transformations,
           **kwargs)
-        self.blockings, self.parameters = self.fit_curves(dataframe, blockings)
-        print(self.blockings)
+        blockings, parameters = self.fit_curves(dataframe, blockings)
+        self.blockings = blockings
+        self.parameters = parameters
+#        if verbose >= 1:
+#            print(parameters)
 #        self.plot(self.blockings, self.parameters)
 
     def select_transformations(self, dataframe, min_n_blocks=2, max_cut=0.1,
@@ -91,6 +97,8 @@ class FPBlockAverager(object):
           kwargs (dict): Additional keyword arguments
         """
 
+        # Arguments
+        verbose = kwargs.get("verbose", 1)
         full_length = dataframe.shape[0]
 
         # Determine number of blocks, block lengths, total lengths used,
@@ -125,7 +133,6 @@ class FPBlockAverager(object):
           columns=["n_blocks", "block_length", "used_length"],
           index=n_transforms)
         transformations.index.name = "n_transforms"
-
         return transformations
 
     def calculate_blockings(self, dataframe, transformations, **kwargs):
@@ -182,7 +189,8 @@ class FPBlockAverager(object):
             analysis.loc[n_transforms][2::3] = stderr_stddev
 
         # Organize and return
-        return transformations.join(analysis)
+        blockings = transformations.join(analysis)
+        return blockings
 
     def fit_curves(self, dataframe, blockings, fit_exp=True,
         fit_sig=True, verbose=1, debug=0, **kwargs):
