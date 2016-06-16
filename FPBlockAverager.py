@@ -33,39 +33,14 @@ class FPBlockAverager(object):
     correlated data. Journal of Chemical Physics. 1989. 91 (1). 461-466.
 
     .. todo:
-      - Support for multiprocessing would be nice
-      - Possibly support wwmgr? Could be nice exercise
+      - Reimplement plotting
+      - 
       - Test Python 3
-      - Support myplotspec for formatting?
       - Support omitting blockings outside min_n_blocks and max cut from
         fit, but still calculating
-      - Use a decorator to pull datasets, blockings, and fits from self?
       - Fit to linear portion after initial fits
       - Estimate sample size and correlation time
     """
-
-#    def __call__(self, **kwargs):
-#        """
-#        Carries out standard error calculation.
-#
-#        Arguments:
-#          kwargs (dict): Additional keyword arguments
-#
-#        .. todo:
-#          - loop over infile arguments
-#        """
-#        verbose = kwargs.get("verbose", 1)
-#        debug = kwargs.get("debug", 1)
-#        for infile in kwargs.pop("infile"):
-#            dataset   = self.load_datasets(infile=infile, **kwargs)
-#            blockings = self.select_transformations(dataset=dataset,**kwargs)
-#            if debug >= 1:
-#                print(blockings)
-#            blockings = self.calculate_blockings(dataset=dataset,
-#              blockings=blockings, **kwargs)
-#            blockings, parameters = self.fit_curves(dataset=dataset,
-#              blockings=blockings, **kwargs)
-#            self.plot(blockings=blockings, parameters=parameters, **kwargs)
 
     def __init__(self, dataframe=None, **kwargs):
         """
@@ -81,7 +56,6 @@ class FPBlockAverager(object):
         self.parameters = parameters
 #        if verbose >= 1:
 #            print(parameters)
-#        self.plot(self.blockings, self.parameters)
 
     def select_transformations(self, dataframe, min_n_blocks=2, max_cut=0.1,
         all_factors=False, **kwargs):
@@ -246,6 +220,7 @@ class FPBlockAverager(object):
         fields = dataframe.columns.tolist()
         columns = ["n_blocks", "block_length", "used_length"]
 
+        fit_sig=False
         if fit_exp:
             exp_fit = pd.DataFrame(
               np.zeros((blockings.shape[0], dataframe.shape[1]))*np.nan,
@@ -323,146 +298,112 @@ class FPBlockAverager(object):
 
         return blockings, parameters
 
-#    def load_datasets(self, infile, verbose=1, **kwargs):
+#    def plot(self, blockings, parameters, verbose=1, debug=0,
+#        outfile="test.pdf", **kwargs):
 #        """
-#        Load datasets from text, numpy, or hdf formats.
+#        Plots block average results using matplotlib.
 #
-#        .. todo:
-#          - Check for file presence and raise nice errors
-#          - Support text, npy, hdf5
+#        Arguments:
+#          verbose (int): Level of verbose output
+#          debug (int): Level of debug output
+#          kwargs (dict): Additional keyword arguments
+#        Returns:
+#
 #        """
-#        from os.path import expandvars, isfile
+#        import matplotlib
+#        import matplotlib.pyplot as plt
+#        from matplotlib.backends.backend_pdf import PdfPages
 #
-#        path = expandvars(infile[0])
-#        if not isfile(path):
-#            raise Exception("infile not found")
-#        if path.endswith(".h5") or path.endswith(".hdf5"):
-#            if len(infile) < 2:
-#                raise Exception("need address within h5")
-#            address = infile[1]
-#            dataset = pd.read_hdf(path, address)
-#            if len(infile) > 2:
-#                fields = infile[2:]
-#                dataset = dataset[fields]
-#                if verbose >= 1:
-#                    print("Dataset '{0}[{1}][{2}]' loaded".format(path,
-#                      address, ", ".join(fields)))
-#            else:
-#                if verbose >= 1:
-#                    print("Dataset '{0}[{1}]' loaded".format(path, address))
-#            if verbose >= 2:
-#                print(dataset)
-#        else:
-#            raise Exception("only hdf5 input currently supported")
+#        fields = [n[:-5] for n in blockings.columns.tolist()
+#          if n.endswith("_mean")]
+#        n_fields = len(fields)
+#        fit_exp = True
+#        fit_sig = True
 #
-#        return dataset
-
-    def plot(self, blockings, parameters, verbose=1, debug=0,
-        outfile="test.pdf", **kwargs):
-        """
-        Plots block average results using matplotlib.
-
-        Arguments:
-          verbose (int): Level of verbose output
-          debug (int): Level of debug output
-          kwargs (dict): Additional keyword arguments
-        Returns:
-
-        """
-        import matplotlib
-        import matplotlib.pyplot as plt
-        from matplotlib.backends.backend_pdf import PdfPages
-
-        fields = [n[:-5] for n in blockings.columns.tolist()
-          if n.endswith("_mean")]
-        n_fields = len(fields)
-        fit_exp = True
-        fit_sig = True
-
-        # Generate and format figure and subplots
-        figure, subplots = plt.subplots(n_fields, 2,
-          figsize=[6.5, 2+n_fields*1.5],
-          subplot_kw=dict(autoscale_on = True))
-#        if self.n_fields == 1:
-#            subplots = np.expand_dims(subplots, 0)
-        # Must adjust for 1 or two column
-        figure.tight_layout(pad=2, h_pad=-1, w_pad=-1)
-        figure.subplots_adjust(
-          left   = 0.10, wspace = 0.1, right = 0.95,
-          bottom = 0.06, hspace = 0.1, top   = 0.95)
-
-        # Title columns for sigmoid and exponential fit
-#        for i, field in enumerate(fields):
-#            # Format x
-#            if i != n_fields - 1:
-#                subplots[i,0].set_xticklabels([])
-#                subplots[i,1].set_xticklabels([])
-
-#            # Format y
-#            subplots[i,0].set_ylabel("σ", rotation="horizontal")
-#            subplots[i,1].set_yticklabels([])
+#        # Generate and format figure and subplots
+#        figure, subplots = plt.subplots(n_fields, 2,
+#          figsize=[6.5, 2+n_fields*1.5],
+#          subplot_kw=dict(autoscale_on = True))
+##        if self.n_fields == 1:
+##            subplots = np.expand_dims(subplots, 0)
+#        # Must adjust for 1 or two column
+#        figure.tight_layout(pad=2, h_pad=-1, w_pad=-1)
+#        figure.subplots_adjust(
+#          left   = 0.10, wspace = 0.1, right = 0.95,
+#          bottom = 0.06, hspace = 0.1, top   = 0.95)
 #
-#            # Add y2 label
-#            subplots[i,1].yaxis.set_label_position("right")
-#            subplots[i,1].set_ylabel(field.title(), rotation=270, labelpad=15)
+#        # Title columns for sigmoid and exponential fit
+##        for i, field in enumerate(fields):
+##            # Format x
+##            if i != n_fields - 1:
+##                subplots[i,0].set_xticklabels([])
+##                subplots[i,1].set_xticklabels([])
 #
-            # set xticks and yticks
-#        subplots[n_fields-1,0].set_xlabel("Block Length")
-#        subplots[n_fields-1,1].set_xlabel("Number of Block Transformations")
-#
-#        for i, field in enumerate(fields):
-#            subplots[i,0].plot(
-#              blockings["block_length"], blockings[field+"_se"],
-#              color="blue")
-#            subplots[i,1].plot(
-#              blockings["n_transforms"], blockings[field+"_se"],
-#              color="blue")
-#            se_sd = blockings[field+"_se_sd"]
-#            subplots[i,0].fill_between(blockings["block_length"], 
-#              blockings[field+"_se"] - 1.96 * blockings[field+"_se_sd"],
-#              blockings[field+"_se"] + 1.96 * blockings[field+"_se_sd"],
-#              lw=0, alpha=0.5, color="blue")
-#            subplots[i,1].fill_between(blockings["n_transforms"],
-#              blockings[field+"_se"] - 1.96 * blockings[field+"_se_sd"],
-#              blockings[field+"_se"] + 1.96 * blockings[field+"_se_sd"],
-#              lw=0, alpha=0.5, color="blue")
-#            if fit_exp:
-#                subplots[i,0].plot(
-#                  blockings["block_length"], blockings[field+"_exp_fit"],
-#                  color="red")
-##                subplots[i,1].plot(
-##                  blockings["n_transforms"], blockings[field+"_exp_fit"],
-##                  color="red")
-#            if fit_sig:
+##            # Format y
+##            subplots[i,0].set_ylabel("σ", rotation="horizontal")
+##            subplots[i,1].set_yticklabels([])
+##
+##            # Add y2 label
+##            subplots[i,1].yaxis.set_label_position("right")
+##            subplots[i,1].set_ylabel(field.title(), rotation=270, labelpad=15)
+##
+#            # set xticks and yticks
+##        subplots[n_fields-1,0].set_xlabel("Block Length")
+##        subplots[n_fields-1,1].set_xlabel("Number of Block Transformations")
+##
+##        for i, field in enumerate(fields):
+##            subplots[i,0].plot(
+##              blockings["block_length"], blockings[field+"_se"],
+##              color="blue")
+##            subplots[i,1].plot(
+##              blockings["n_transforms"], blockings[field+"_se"],
+##              color="blue")
+##            se_sd = blockings[field+"_se_sd"]
+##            subplots[i,0].fill_between(blockings["block_length"], 
+##              blockings[field+"_se"] - 1.96 * blockings[field+"_se_sd"],
+##              blockings[field+"_se"] + 1.96 * blockings[field+"_se_sd"],
+##              lw=0, alpha=0.5, color="blue")
+##            subplots[i,1].fill_between(blockings["n_transforms"],
+##              blockings[field+"_se"] - 1.96 * blockings[field+"_se_sd"],
+##              blockings[field+"_se"] + 1.96 * blockings[field+"_se_sd"],
+##              lw=0, alpha=0.5, color="blue")
+##            if fit_exp:
 ##                subplots[i,0].plot(
-##                  blockings["block_length"], blockings[field+"_sig_fit"],
+##                  blockings["block_length"], blockings[field+"_exp_fit"],
+##                  color="red")
+###                subplots[i,1].plot(
+###                  blockings["n_transforms"], blockings[field+"_exp_fit"],
+###                  color="red")
+##            if fit_sig:
+###                subplots[i,0].plot(
+###                  blockings["block_length"], blockings[field+"_sig_fit"],
+###                  color="green")
+##                subplots[i,1].plot(
+##                  blockings["n_transforms"], blockings[field+"_sig_fit"],
 ##                  color="green")
-#                subplots[i,1].plot(
-#                  blockings["n_transforms"], blockings[field+"_sig_fit"],
-#                  color="green")
-#        # Annotate
-##                subplots[i,1].legend(loc = 4)
+##        # Annotate
+###                subplots[i,1].legend(loc = 4)
+##
+##        # Also make sure y lower bound is 0 and x upper bound is max x
+##        # Scale exponential tick labels?
+##        for i, field in enumerate(fields):
+##            print(field)
+##            # Adjust x ticks
+##            xticks = subplots[i,0].get_xticks()
+##            xticks = xticks[xticks <= blockings["block_length"].max()]
+##            subplots[i,0].set_xbound(0, xticks[-1])
+##            subplots[i,1].set_xbound(0, blockings["n_transforms"].max())
+##
+##            # Adjust y ticks
+##            yticks = subplots[i,0].get_yticks()
+##            yticks = yticks[yticks >= 0]
+##            subplots[i,0].set_ybound(yticks[0], yticks[-1])
+##            subplots[i,1].set_ybound(yticks[0], yticks[-1])
 #
-#        # Also make sure y lower bound is 0 and x upper bound is max x
-#        # Scale exponential tick labels?
-#        for i, field in enumerate(fields):
-#            print(field)
-#            # Adjust x ticks
-#            xticks = subplots[i,0].get_xticks()
-#            xticks = xticks[xticks <= blockings["block_length"].max()]
-#            subplots[i,0].set_xbound(0, xticks[-1])
-#            subplots[i,1].set_xbound(0, blockings["n_transforms"].max())
-#
-#            # Adjust y ticks
-#            yticks = subplots[i,0].get_yticks()
-#            yticks = yticks[yticks >= 0]
-#            subplots[i,0].set_ybound(yticks[0], yticks[-1])
-#            subplots[i,1].set_ybound(yticks[0], yticks[-1])
-
-        # Save and return
-        with PdfPages(outfile) as pdf_outfile:
-            figure.savefig(pdf_outfile, format="pdf")
-        return None
+#        # Save and return
+#        with PdfPages(outfile) as pdf_outfile:
+#            figure.savefig(pdf_outfile, format="pdf")
+#        return None
 
 #    def main(self, parser=None):
 #        """
