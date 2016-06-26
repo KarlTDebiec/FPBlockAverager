@@ -34,7 +34,6 @@ class FPBlockAverager(object):
 
     .. todo:
       - Reimplement plotting
-      - 
       - Test Python 3
       - Support omitting blockings outside min_n_blocks and max cut from
         fit, but still calculating
@@ -53,9 +52,11 @@ class FPBlockAverager(object):
           **kwargs)
         blockings, parameters = self.fit_curves(dataframe, blockings)
         self.blockings = blockings
+        if verbose >= 2:
+            print(blockings)
         self.parameters = parameters
-#        if verbose >= 1:
-#            print(parameters)
+        if verbose >= 1:
+            print(parameters)
 
     def select_transformations(self, dataframe, min_n_blocks=2, max_cut=0.1,
         all_factors=False, **kwargs):
@@ -104,9 +105,9 @@ class FPBlockAverager(object):
         # Organize and return
         transformations = pd.DataFrame(
           np.column_stack((n_blocks,block_lengths,used_lengths)),
-          columns=["n_blocks", "block_length", "used_length"],
+          columns=["n blocks", "block length", "used length"],
           index=n_transforms)
-        transformations.index.name = "n_transforms"
+        transformations.index.name = "n transforms"
         return transformations
 
     def calculate_blockings(self, dataframe, transformations, **kwargs):
@@ -143,21 +144,22 @@ class FPBlockAverager(object):
             return transformed
 
         # Construct destination for results
-        columns = [[c+"_mean", c+"_se", c+"_se_sd"] for c in dataframe.columns]
+        columns = [[c+" mean", c+" se", c+" se sd"]
+                    for c in map(str, dataframe.columns)]
         columns = [item for sublist in columns for item in sublist]
         analysis = pd.DataFrame(
           np.zeros((transformations.shape[0], dataframe.shape[1]*3)),
           columns=columns,
           index=transformations.index.values)
-        analysis.index.name = "n_transforms"
+        analysis.index.name = "n transforms"
 
         # Calculate mean, stderr, and stddev of stderr for each blocking
         for n_transforms, row in transformations.iterrows():
-            transformed   = transform(row["n_blocks"], row["block_length"])
+            transformed   = transform(row["n blocks"], row["block length"])
             mean          = np.mean(transformed.values, axis=0)
             stddev        = np.std(transformed.values,  axis=0)
-            stderr        = stddev / np.sqrt(row["n_blocks"] - 1)
-            stderr_stddev = stderr / np.sqrt(2 * (row["n_blocks"] - 1))
+            stderr        = stddev / np.sqrt(row["n blocks"] - 1)
+            stderr_stddev = stderr / np.sqrt(2 * (row["n blocks"] - 1))
             analysis.loc[n_transforms][0::3] = mean
             analysis.loc[n_transforms][1::3] = stderr
             analysis.loc[n_transforms][2::3] = stderr_stddev
@@ -217,24 +219,24 @@ class FPBlockAverager(object):
             return b + ((a - b) / (1 + (x / c) ** d))
 
         # Construct destinations for results
-        fields = dataframe.columns.tolist()
-        columns = ["n_blocks", "block_length", "used_length"]
+        fields = map(str, dataframe.columns.tolist())
+        columns = ["n blocks", "block length", "used length"]
 
         fit_sig=False
         if fit_exp:
             exp_fit = pd.DataFrame(
               np.zeros((blockings.shape[0], dataframe.shape[1]))*np.nan,
-              columns=[f+"_exp_fit" for f in fields],
+              columns=[f+" exp fit" for f in fields],
               index=blockings.index.values)
-            exp_fit.index.name = "n_transforms"
+            exp_fit.index.name = "n transforms"
             exp_par = pd.DataFrame(np.zeros((3, len(fields)))*np.nan,
               index=["a (se)", "b", "c"], columns=fields)
         if fit_sig:
             sig_fit = pd.DataFrame(
               np.zeros((blockings.shape[0], dataframe.shape[1]))*np.nan,
-              columns=[f+"_sig_fit" for f in fields],
+              columns=[f+" sig fit" for f in fields],
               index=blockings.index.values)
-            sig_fit.index.name = "n_transforms"
+            sig_fit.index.name = "n transforms"
             sig_par = pd.DataFrame( np.zeros((4, len(fields)))*np.nan,
               index=["a", "b (se)", "c", "d"], columns=fields)
 
@@ -242,16 +244,16 @@ class FPBlockAverager(object):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             for i, field in enumerate(fields):
-                columns.extend([field+"_mean", field+"_se", field+"_se_sd"])
+                columns.extend([field+" mean", field+" se", field+" se sd"])
                 if fit_exp:
-                    columns.append(field+"_exp_fit")
+                    columns.append(field+" exp fit")
                     try:
                         a, b, c = curve_fit(exponential,
-                          blockings["block_length"], blockings[field+"_se"],
+                          blockings["block length"], blockings[field+" se"],
                           p0=(0.01, -1.0, -0.1))[0]
                         if a >= 0:
-                            exp_fit[field+"_exp_fit"] = exponential(
-                              blockings["block_length"].values, a, b, c)
+                            exp_fit[field+" exp fit"] = exponential(
+                              blockings["block length"].values, a, b, c)
                             exp_par[field] = [a, b, c]
                         elif verbose >= 1:
                             print("Exponential fit for field "
@@ -262,13 +264,13 @@ class FPBlockAverager(object):
                             print("Could not fit exponential for field "
                               "'{0}', setting values to NaN".format(field))
                 if fit_sig:
-                    columns.append(field+"_sig_fit")
+                    columns.append(field+" sig fit")
                     try:
                         a, b, c, d = curve_fit(sigmoid,
-                          blockings.index.values, blockings[field+"_se"],
+                          blockings.index.values, blockings[field+" se"],
                           p0=(0.0, 0.1, 10, 1))[0]
                         if b >= 0:
-                            sig_fit[field+"_sig_fit"] = sigmoid(
+                            sig_fit[field+" sig fit"] = sigmoid(
                               blockings.index.values, a, b, c, d)
                             sig_par[field] = [a, b, c, d]
                         elif verbose >= 1:
