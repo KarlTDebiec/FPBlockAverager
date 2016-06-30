@@ -222,7 +222,7 @@ class FPBlockAverager(object):
         fields = map(str, dataframe.columns.tolist())
         columns = ["n blocks", "block length", "used length"]
 
-        fit_sig=True
+        fit_sig=False
         if fit_exp:
             exp_fit = pd.DataFrame(
               np.zeros((blockings.shape[0], dataframe.shape[1]))*np.nan,
