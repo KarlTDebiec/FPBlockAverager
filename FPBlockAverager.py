@@ -26,8 +26,8 @@ from sys import exit
 ################################### CLASSES ###################################
 class FPBlockAverager(object):
     """
-    Class to manage estimation of standard error using the
-    block-averaging method of Flyvbjerg and Petersen
+    Manages estimation of standard error using the block-averaging
+    method of Flyvbjerg and Petersen.
 
     Flyvbjerg, H., and Petersen, H. G. Error estimates on averages of
     correlated data. Journal of Chemical Physics. 1989. 91 (1). 461-466.
@@ -43,42 +43,64 @@ class FPBlockAverager(object):
 
     def __init__(self, dataframe=None, **kwargs):
         """
+        Arguments:
+          dataframe (DataFrame): DataFrame for which to calculate error;
+            index should be time
+          all_factors (bool): Use all factors by which the dataset is
+            divisible rather than only factors of two
+          min_n_blocks (int): Minimum number of blocks after
+            transformation
+          max_cut (float): Maximum proportion of dataset of omit in
+            transformation
+          fit_exp (bool): Fit exponential curve
+          fit_sig (bool): Fit sigmoid curve
+          verbose (int): Level of verbose output
+          kwargs (dict): Additional keyword arguments
         """
         # Arguments
         verbose = kwargs.get("verbose", 1)
 
         transformations = self.select_transformations(dataframe, **kwargs)
+        if verbose >= 1:
+            print(transformations)
         blockings = self.calculate_blockings(dataframe, transformations,
           **kwargs)
-        blockings, parameters = self.fit_curves(dataframe, blockings)
-        self.blockings = blockings
+        if verbose >= 1:
+            print(blockings)
+        blockings, parameters = self.fit_curves(dataframe, blockings,
+          **kwargs)
         if verbose >= 2:
             print(blockings)
-        self.parameters = parameters
         if verbose >= 1:
             print(parameters)
+        self.blockings = blockings
+        self.parameters = parameters
 
-    def select_transformations(self, dataframe, min_n_blocks=2, max_cut=0.1,
-        all_factors=False, **kwargs):
+    def select_transformations(self, dataframe, all_factors=False,
+        min_n_blocks=2, max_cut=0.1, **kwargs):
         """
-        Selects lengths of block-transformed dataframe
+        Selects lengths of block transformations
 
         Arguments:
-          dataframe (DataFrame): Input data
-          min_n_blocks (int): Minimum number of blocks in frame
-          max_cut (float): Maximum proportion of dataset of omit
-          all_factors (bool): Use all factors by which the dataset is divisible
-            rather than only factors of two
+          dataframe (DataFrame): Timeseries for which to select
+            tranformations
+          all_factors (bool): Use all factors by which the dataset is
+            divisible rather than only factors of two
+          min_n_blocks (int): Minimum number of blocks after
+            transformation
+          max_cut (float): Maximum proportion of dataset of omit in
+            transformation
           kwargs (dict): Additional keyword arguments
+
+        Returns:
+          DataFrame: transformations
         """
 
         # Arguments
-        verbose = kwargs.get("verbose", 1)
         full_length = dataframe.shape[0]
 
         # Determine number of blocks, block lengths, total lengths used,
         #   and number of transforms
-        all_factors = True
         if all_factors:
             block_lengths = np.array(sorted(set(
               range(1, 2 ** int(np.floor(np.log2(full_length)))))), np.int)
@@ -95,7 +117,7 @@ class FPBlockAverager(object):
 
         # Cut transformations for which more than max_cut proprotion of
         #   dataframe must be omitted
-        used_lengths = n_blocks * block_lengths
+        used_lengths  = n_blocks * block_lengths
         indexes       = (used_lengths >= full_length*(1-max_cut))
         n_blocks      = n_blocks[indexes]
         block_lengths = block_lengths[indexes]
@@ -112,16 +134,20 @@ class FPBlockAverager(object):
 
     def calculate_blockings(self, dataframe, transformations, **kwargs):
         """
-        Calculates standard error for each block transform.
+        Calculates standard error of block transforms
 
         The standard deviation of each standard error (stderr_stddev) is
         only valid for points whose standard error has leveled off (i.e.
         can be assumed Gaussian).
 
         Arguments:
-          dataframe (DataFrame): Input data
-          blockings (DataFrame): blockings
+          dataframe (DataFrame): Timeseries for which to calculate
+            blockings
+          transformations (DataFrame): transformations
           kwargs (dict): Additional keyword arguments
+
+        Returns:
+          DataFrame: blockings
         """
 
         def transform(n_blocks, block_length):
@@ -132,9 +158,6 @@ class FPBlockAverager(object):
               n_blocks (int): Number of blocks in transformed dataset 
               block_length (int): Length of each block in transformed
                 dataset
-
-            .. todo:
-              - Is there an appropriate way to do this using pandas?
             """
 
             reshaped = np.reshape(dataframe.values[:n_blocks*block_length],
@@ -168,17 +191,22 @@ class FPBlockAverager(object):
         blockings = transformations.join(analysis)
         return blockings
 
-    def fit_curves(self, dataframe, blockings, fit_exp=True,
-        fit_sig=True, verbose=1, debug=0, **kwargs):
+    def fit_curves(self, dataframe, blockings, fit_exp=True, fit_sig=True,
+        **kwargs):
         """
         Fits exponential and sigmoid curves to block-transformed data.
 
         Arguments:
+          dataframe (DataFrame): Timeseries for which to fit curves
+          blockings (DataFrame): Blockings
+          fit_exp (bool): Fit exponential curve
+          fit_sig (bool): Fit sigmoid curve
+          verbose (int): Level of verbose output
           kwargs (dict): Additional keyword arguments
 
-        .. todo:
-          - if exp a or sig b is negative, set to NaN and print a
-            warning
+        Returns:
+          (Dataframe, Dataframe): blockings with fit curves inserted,
+          fit parameters
         """
         import warnings
         from scipy.optimize import curve_fit
@@ -195,7 +223,7 @@ class FPBlockAverager(object):
               c (float): Power
 
             Returns:
-              y (float): y(x)
+              float: y(x)
             """
             return a + b * np.exp(c * x)
 
@@ -214,15 +242,17 @@ class FPBlockAverager(object):
               d (float): Power
 
             Returns:
-              y (float): y(x)
+              float: y(x)
             """
             return b + ((a - b) / (1 + (x / c) ** d))
+
+        # Process arguments
+        verbose = kwargs.get("verbose", 1)
 
         # Construct destinations for results
         fields = map(str, dataframe.columns.tolist())
         columns = ["n blocks", "block length", "used length"]
 
-        fit_sig=False
         if fit_exp:
             exp_fit = pd.DataFrame(
               np.zeros((blockings.shape[0], dataframe.shape[1]))*np.nan,
@@ -297,7 +327,6 @@ class FPBlockAverager(object):
         if fit_sig:
             blockings = blockings.join(sig_fit)
         blockings = blockings[columns]
-
         return blockings, parameters
 
 #    def plot(self, blockings, parameters, verbose=1, debug=0,
