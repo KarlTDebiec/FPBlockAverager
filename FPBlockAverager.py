@@ -61,17 +61,17 @@ class FPBlockAverager(object):
         verbose = kwargs.get("verbose", 1)
 
         transformations = self.select_transformations(dataframe, **kwargs)
-        if verbose >= 1:
+        if verbose >= 2:
             print(transformations)
         blockings = self.calculate_blockings(dataframe, transformations,
           **kwargs)
-        if verbose >= 1:
+        if verbose >= 2:
             print(blockings)
         blockings, parameters = self.fit_curves(dataframe, blockings,
           **kwargs)
-        if verbose >= 2:
+        if verbose >= 3:
             print(blockings)
-        if verbose >= 1:
+        if verbose >= 2:
             print(parameters)
         self.blockings = blockings
         self.parameters = parameters
