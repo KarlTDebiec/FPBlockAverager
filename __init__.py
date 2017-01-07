@@ -2,13 +2,16 @@
 # -*- coding: utf-8 -*-
 #   fpblockaverager.__init__.py
 #
-#   Copyright (C) 2012-2016 Karl T Debiec
+#   Copyright (C) 2012-2017 Karl T Debiec
 #   All rights reserved.
 #
 #   This software may be modified and distributed under the terms of the
 #   BSD license. See the LICENSE file for details.
 ################################### MODULES ###################################
-from __future__ import absolute_import,division,print_function,unicode_literals
+from __future__ import (absolute_import, division, print_function,
+    unicode_literals)
+
+
 ################################### CLASSES ###################################
 class arg_or_attr(object):
     """
@@ -17,6 +20,7 @@ class arg_or_attr(object):
     Attributes:
       names (list): Names to support
     """
+
     def __init__(self, *args):
         """
         Stores arguments provided at decoration.
@@ -60,9 +64,10 @@ class arg_or_attr(object):
                         kwargs[name] = getattr(self, name)
                     else:
                         raise ValueError(
-                          "{0}.{1} could not identify argument '{2}'.".format(
-                          self.__class__.__name__, decorator.method.__name__,
-                          name))
+                            "{0}.{1} could not identify argument '{"
+                            "2}'.".format(
+                                self.__class__.__name__,
+                                decorator.method.__name__, name))
 
             return method(self, *args, **kwargs)
 
