@@ -24,6 +24,7 @@ from __future__ import (absolute_import, division, print_function,
 
 if __name__ == "__main__":
     __package__ = str("fpblockaverager")
+    import fpblockaverager
 import numpy as np
 import pandas as pd
 
